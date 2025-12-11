@@ -1,12 +1,12 @@
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace connect4
 {
@@ -33,8 +33,10 @@ namespace connect4
         const int CHIP_SIZE_X = 80;
         const int CHIP_SIZE_Y = 80;
         Vector2 BOARD_BEGIN = new Vector2(BOARD_BEGIN_X, BOARD_BEGIN_Y);
+        Rectangle RESET_BUTTON = new Rectangle(10, 10, 60, 40);
         Texture2D[] _chipTextures = new Texture2D[2];
         Texture2D _boardTexture;
+        Texture2D _pixelTexture;
         SpriteFont _fontLarge;
         byte win = 0;
         long frames = 0;
@@ -71,13 +73,17 @@ namespace connect4
             _chipTextures[1] = Content.Load<Texture2D>("ChipYellow");
             _boardTexture = Content.Load<Texture2D>("board");
             _fontLarge = Content.Load<SpriteFont>("fontLarge");
+
+            // Create a 1x1 white pixel texture for drawing shapes
+            _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
+            _pixelTexture.SetData(new[] { Color.White });
         }
 
         public byte checkWinner(byte[][] board)
         {
             if (turns > 41)
                 return (byte)3;
-            
+
             for (int x = 0; x < board.Length; x++)
             {
                 int counter = 0;
@@ -275,7 +281,10 @@ namespace connect4
 
         protected override void Update(GameTime gameTime)
         {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+            if (
+                GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed
+                || Keyboard.GetState().IsKeyDown(Keys.Escape)
+            )
                 Exit();
 
             // TODO: Add your update logic here
@@ -284,11 +293,21 @@ namespace connect4
 
             base.Update(gameTime);
 
-            if (mouse.LeftButton == ButtonState.Pressed && !debounceLeft && frames > checkWinnerFrame && win == 0)
+            if (
+                mouse.LeftButton == ButtonState.Pressed
+                && !debounceLeft
+                && frames > checkWinnerFrame
+                && win == 0
+            )
             {
                 debounceLeft = true;
                 int relativeX = mouse.X - BOARD_BEGIN_X;
-                if (relativeX > 0 && relativeX < BOARD_SIZE_X && mouse.Y > 0 && mouse.Y < Window.ClientBounds.Height)
+                if (
+                    relativeX > 0
+                    && relativeX < BOARD_SIZE_X
+                    && mouse.Y > 0
+                    && mouse.Y < Window.ClientBounds.Height
+                )
                 {
                     int column = (relativeX - CHIP_OFFSET_X) / (CHIP_SIZE_X + CHIP_OFFSET_X);
                     if (board[column][5] == 0)
@@ -310,9 +329,27 @@ namespace connect4
                     }
                     */
                 }
-                else if (mouse.X > CHIP_OFFSET_X && mouse.X < CHIP_OFFSET_X + CHIP_SIZE_X
-                    &&   mouse.Y > BOARD_SIZE_Y - CHIP_SIZE_Y && mouse.Y < BOARD_SIZE_Y)
+                else if (
+                    mouse.X > CHIP_OFFSET_X
+                    && mouse.X < CHIP_OFFSET_X + CHIP_SIZE_X
+                    && mouse.Y > BOARD_SIZE_Y - CHIP_SIZE_Y
+                    && mouse.Y < BOARD_SIZE_Y
+                )
                     aiLevel = (aiLevel + 2) % (AI_DEPTH + 2) - 1;
+                else if (RESET_BUTTON.Contains(mouse.X, mouse.Y))
+                {
+                    // Reset the game
+                    for (int i = 0; i < board.Length; i++)
+                    {
+                        for (int j = 0; j < board[i].Length; j++)
+                        {
+                            board[i][j] = 0;
+                        }
+                    }
+                    win = 0;
+                    turns = 0;
+                    checkWinnerFrame = frames + 30;
+                }
             }
             if (mouse.LeftButton == ButtonState.Released && debounceLeft)
                 debounceLeft = false;
@@ -354,7 +391,33 @@ namespace connect4
 
             SpriteBatch spriteBatch = new SpriteBatch(GraphicsDevice);
             spriteBatch.Begin();
-            spriteBatch.DrawString(_fontLarge,"AI", new Vector2(CHIP_OFFSET_X,BOARD_SIZE_Y-CHIP_SIZE_Y), aiLevel == -1 ? Color.Black : new Color((float)(aiLevel + 1) / (AI_DEPTH + 1), 1 - (float)(aiLevel + 1) / (AI_DEPTH + 1), 0));
+
+            // Draw reset button
+            spriteBatch.Draw(_pixelTexture, RESET_BUTTON, Color.DarkGray);
+            spriteBatch.DrawString(
+                _fontLarge,
+                "Reset",
+                new Vector2(RESET_BUTTON.X + 2, RESET_BUTTON.Y + 5),
+                Color.White,
+                0f,
+                Vector2.Zero,
+                0.25f,
+                SpriteEffects.None,
+                0f
+            );
+
+            spriteBatch.DrawString(
+                _fontLarge,
+                "AI",
+                new Vector2(CHIP_OFFSET_X, BOARD_SIZE_Y - CHIP_SIZE_Y),
+                aiLevel == -1
+                    ? Color.Black
+                    : new Color(
+                        (float)(aiLevel + 1) / (AI_DEPTH + 1),
+                        1 - (float)(aiLevel + 1) / (AI_DEPTH + 1),
+                        0
+                    )
+            );
 
             for (int i = 0; i < board.Length; i++)
             {
@@ -366,25 +429,39 @@ namespace connect4
                             _chipTextures[board[i][j] - 1],
                             new Rectangle(
                                 CHIP_BEGIN_X + i * (CHIP_SIZE_X + CHIP_OFFSET_X),
-                                CHIP_BEGIN_Y + (board[i].Length - j - 1) * (CHIP_SIZE_Y + CHIP_OFFSET_Y),
+                                CHIP_BEGIN_Y
+                                    + (board[i].Length - j - 1) * (CHIP_SIZE_Y + CHIP_OFFSET_Y),
                                 CHIP_SIZE_X,
                                 CHIP_SIZE_Y
-                            ), Color.White);
+                            ),
+                            Color.White
+                        );
                     }
                 }
             }
-            spriteBatch.Draw(_boardTexture, new Rectangle(BOARD_BEGIN_X, BOARD_BEGIN_Y, BOARD_SIZE_X, BOARD_SIZE_Y), Color.White);
+            spriteBatch.Draw(
+                _boardTexture,
+                new Rectangle(BOARD_BEGIN_X, BOARD_BEGIN_Y, BOARD_SIZE_X, BOARD_SIZE_Y),
+                Color.White
+            );
             if (win != 0)
             {
                 string winnerReadable = "Nobody";
                 switch (win)
                 {
                     case 1:
-                        winnerReadable = "Red"; break;
+                        winnerReadable = "Red";
+                        break;
                     case 2:
-                        winnerReadable = "Yellow"; break;
+                        winnerReadable = "Yellow";
+                        break;
                 }
-                spriteBatch.DrawString(_fontLarge, winnerReadable + " wins!", new Vector2(CHIP_OFFSET_X, 0), Color.Black);
+                spriteBatch.DrawString(
+                    _fontLarge,
+                    winnerReadable + " wins!",
+                    new Vector2(CHIP_OFFSET_X, 0),
+                    Color.Black
+                );
             }
 
             spriteBatch.End();
